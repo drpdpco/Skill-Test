@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Skill Test For Various Events</title>
+<title>Industry Internship Test</title>
 <style>
   :root{
     --maroon:#8f1b1b;
@@ -271,7 +271,7 @@
 
 <script>
 /* =========================================================
-   SKILL TEST for various events
+   INDUSTRY INTERNSHIP EMPLOYABILITY SKILL TEST
    Data is stored in a Google Sheet via a Google Apps Script
    Web App acting as a simple JSON API. See setup instructions
    provided alongside this file. Paste your deployed Web App
@@ -279,7 +279,7 @@
 ========================================================= */
 
 /* ============ 1. PASTE YOUR APPS SCRIPT WEB APP URL HERE ============ */
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwJTBMUWuVlvASMmWxwK8sBOjzrl0XMvC7BBpfo1hKxSxML5ph6RBUibxEJkZKlIqZf/exec';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwhzUIutrNPvizsVx7QRK6-cjSkQx9qtsVU2-6-mKmDMoxgrGcMhzeVCGCTtGqn5pVE/exec';
 /* ====================================================================== */
 
 // The active API URL can also be supplied via a ?api=... link (see the
@@ -307,7 +307,7 @@ const HEADING_PRESETS = [
 ];
 
 const DEFAULT_CONFIG = {
-  testHeading: 'Skill Test',
+  testHeading: 'Industry Internship Test',
   year: '2026-27',
   testDate: '',
   timeMin: 20,
@@ -511,19 +511,30 @@ function goHome(){
 }
 
 function renderHome(){
+  const autoInstructions = [
+    `Duration: <b>${esc(CONFIG.timeMin)} minutes</b>`,
+    `Total Questions: <b>${QUESTIONS.length}</b>`,
+    CONFIG.marksWrong > 0
+      ? `Marking Scheme: <b>+${esc(CONFIG.marksCorrect)}</b> for each correct answer, <b>−${esc(CONFIG.marksWrong)}</b> for each wrong answer. Unanswered questions get 0.`
+      : `Marking Scheme: <b>+${esc(CONFIG.marksCorrect)}</b> for each correct answer. No negative marking.`,
+  ];
+  if(CONFIG.testCode) autoInstructions.push('🔒 A <b>test code</b> from your admin/teacher is required to start.');
+  if(CONFIG.startAt) autoInstructions.push(`Test opens: <b>${fmtDT(CONFIG.startAt)}</b>`);
+  if(CONFIG.endAt) autoInstructions.push(`Test closes: <b>${fmtDT(CONFIG.endAt)}</b>`);
+  autoInstructions.push('Once you begin, questions are shown one at a time — use Next/Previous to move between them, and Submit on the last question to finish.');
+  autoInstructions.push('Do not switch tabs or apps during the test — it will be recorded and shown to your admin/teacher.');
+
   app.innerHTML = `
     <div class="card">
       <div class="lead">${esc(CONFIG.testHeading || DEFAULT_CONFIG.testHeading)}</div>
       <div class="sub">A.Y. ${esc(CONFIG.year)}${CONFIG.testDate? ' &bull; '+esc(CONFIG.testDate):''}</div>
-      <div class="sub">Duration: <b>${esc(CONFIG.timeMin)} minutes</b> &nbsp;|&nbsp; Questions: <b>${QUESTIONS.length}</b> &nbsp;|&nbsp; +${esc(CONFIG.marksCorrect)} for correct, −${esc(CONFIG.marksWrong)} for wrong</div>
-      ${CONFIG.testCode? '<div class="sub">🔒 A test code (from your admin/teacher) is required to start.</div>' : ''}
-      ${NOTICES.length? `
-        <div class="msg info" style="text-align:left; margin-top:16px">
-          <b>Notices / Instructions</b>
-          <ul style="margin:8px 0 0 18px; padding:0">
-            ${NOTICES.map(n=>`<li>${esc(n)}</li>`).join('')}
-          </ul>
-        </div>` : ''}
+      <div class="msg info" style="text-align:left; margin-top:16px">
+        <b>📋 Instructions — Read before you begin</b>
+        <ul style="margin:8px 0 0 18px; padding:0">
+          ${autoInstructions.map(n=>`<li style="margin-bottom:4px">${n}</li>`).join('')}
+          ${NOTICES.map(n=>`<li style="margin-bottom:4px">${esc(n)}</li>`).join('')}
+        </ul>
+      </div>
       <div class="role-row">
         <div class="role-btn" id="btnStudent"><span class="emoji">🎓</span>Take the Test<br><span class="small">Student login</span></div>
         <div class="role-btn" id="btnAdmin"><span class="emoji">🛠️</span>Admin Panel<br><span class="small">Upload questions &amp; set timer</span></div>
@@ -869,7 +880,7 @@ function generateResultPDF(r){
   doc.setFontSize(16);
   doc.setFont('helvetica','bold');
   doc.setTextColor(20,30,60);
-  doc.text('Skill Test — Result', pageWidth/2, y, {align:'center'});
+  doc.text('Industry Internship Test — Result', pageWidth/2, y, {align:'center'});
   y += 45;
 
   const rows = [
@@ -908,7 +919,7 @@ function generateResultPDF(r){
   doc.setFontSize(9);
   doc.setTextColor(120,120,120);
   doc.setFont('helvetica','normal');
-  doc.text('This is a system-generated result sheet from the Skill Test portal.', pageWidth/2, y, {align:'center'});
+  doc.text('This is a system-generated result sheet from the Industry Internship Test portal.', pageWidth/2, y, {align:'center'});
 
   doc.save(`Result_${r.roll}_${r.enrolment}.pdf`);
 }
@@ -953,7 +964,7 @@ function renderAdminPanel(tab){
       <div class="tabbar">
         <button data-tab="settings">Settings</button>
         <button data-tab="questions">Questions (${QUESTIONS.length})</button>
-        <button data-tab="notices">Notices (${NOTICES.length})</button>
+        <button data-tab="notices">Instructions (${NOTICES.length})</button>
         <button data-tab="students">Students</button>
         <button data-tab="results">Results</button>
       </div>
@@ -1265,8 +1276,8 @@ function downloadTemplate(){
 /* ---- Notices tab ---- */
 function renderTabNotices(body){
   body.innerHTML = `
-    <h3>Add a Notice</h3>
-    <p class="small">Notices appear on the home screen for students before they start the test — use them for instructions, eligibility, or important announcements.</p>
+    <h3>Add an Instruction / Notice</h3>
+    <p class="small">These appear on the student home screen inside the "📋 Instructions" box, below the auto-generated lines for duration, question count, and marking scheme — use them for extra rules, eligibility, or announcements.</p>
     <div style="display:flex; gap:10px; align-items:flex-start;">
       <input type="text" id="noticeText" placeholder="e.g. Carry your college ID card for verification." style="flex:1">
       <button class="btn-primary" id="addNoticeBtn" style="flex-shrink:0">Add</button>
@@ -1274,16 +1285,16 @@ function renderTabNotices(body){
     <div id="addNoticeMsg"></div>
 
     <hr style="margin:22px 0;border:none;border-top:1px solid var(--line)">
-    <h3>Bulk Replace (paste one notice per line)</h3>
+    <h3>Bulk Replace (paste one line per instruction)</h3>
     <textarea id="noticeBulk" placeholder="Carry your college ID card for verification.
 No electronic devices allowed during the test.
 Results will be announced within 3 working days."></textarea>
     <div id="bulkNoticeMsg"></div>
-    <div class="btnbar"><button class="btn-gold" id="bulkNoticeBtn">Replace All Notices</button></div>
+    <div class="btnbar"><button class="btn-gold" id="bulkNoticeBtn">Replace All</button></div>
 
     <hr style="margin:22px 0;border:none;border-top:1px solid var(--line)">
     <div class="flexbetween">
-      <h3>Current Notices (${NOTICES.length})</h3>
+      <h3>Current Instructions (${NOTICES.length})</h3>
       ${NOTICES.length? '<button class="btn-danger btn-sm" id="clearNoticesBtn">Clear All</button>' : ''}
     </div>
     <div id="noticeList"></div>
@@ -1456,7 +1467,7 @@ function generateClassPDF(results){
     doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...maroon);
     doc.text('Dr. Panjabrao Deshmukh Polytechnic, Amravati', pageWidth/2, 34, {align:'center'});
     doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(30,30,30);
-    doc.text('Computer Engineering Department — Skill Test: Class Result Sheet', pageWidth/2, 48, {align:'center'});
+    doc.text('Computer Engineering Department — Industry Internship Test: Class Result Sheet', pageWidth/2, 48, {align:'center'});
     doc.setDrawColor(...maroon); doc.setLineWidth(1); doc.line(marginX, 62, pageWidth-marginX, 62);
   }
   function drawTableHeader(y){
@@ -1505,7 +1516,7 @@ function generateClassPDF(results){
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(20,30,60);
   doc.text(`Total Students: ${total}    Passed (≥60%): ${passed}    Average: ${avg}%    Tab-Switch Flags: ${flagged}`, marginX, y);
 
-  doc.save('Class_Results_Skill Test_Test.pdf');
+  doc.save('Class_Results_Industry_Internship_Test.pdf');
 }
 function exportCSV(results){
   const header = ['Roll','Name','Enrolment','Class','Score','OutOf','Percent','TabSwitches','SubmittedAt'];

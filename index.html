@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Industry Internship Test</title>
+<title>Skill Test</title>
 <style>
   :root{
     --maroon:#8f1b1b;
@@ -271,7 +271,7 @@
 
 <script>
 /* =========================================================
-   INDUSTRY INTERNSHIP EMPLOYABILITY SKILL TEST
+   SKILL TEST
    Data is stored in a Google Sheet via a Google Apps Script
    Web App acting as a simple JSON API. See setup instructions
    provided alongside this file. Paste your deployed Web App
@@ -300,14 +300,14 @@ const K_ROSTER = 'roster';
 const K_NOTICES = 'notices';
 
 const HEADING_PRESETS = [
-  'Industry Internship Test',
+  'Skill Test',
   'General Quiz – Elimination Round',
   'Technical Quiz – Elimination Round',
   'Mock Employability Test'
 ];
 
 const DEFAULT_CONFIG = {
-  testHeading: 'Industry Internship Test',
+  testHeading: 'Skill Test',
   year: '2026-27',
   testDate: '',
   timeMin: 20,
@@ -880,7 +880,7 @@ function generateResultPDF(r){
   doc.setFontSize(16);
   doc.setFont('helvetica','bold');
   doc.setTextColor(20,30,60);
-  doc.text('Industry Internship Test — Result', pageWidth/2, y, {align:'center'});
+  doc.text('Skill Test — Result', pageWidth/2, y, {align:'center'});
   y += 45;
 
   const rows = [
@@ -919,7 +919,7 @@ function generateResultPDF(r){
   doc.setFontSize(9);
   doc.setTextColor(120,120,120);
   doc.setFont('helvetica','normal');
-  doc.text('This is a system-generated result sheet from the Industry Internship Test portal.', pageWidth/2, y, {align:'center'});
+  doc.text('This is a system-generated result sheet from the Skill Test portal.', pageWidth/2, y, {align:'center'});
 
   doc.save(`Result_${r.roll}_${r.enrolment}.pdf`);
 }
@@ -1467,7 +1467,7 @@ function generateClassPDF(results){
     doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...maroon);
     doc.text('Dr. Panjabrao Deshmukh Polytechnic, Amravati', pageWidth/2, 34, {align:'center'});
     doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(30,30,30);
-    doc.text('Computer Engineering Department — Industry Internship Test: Class Result Sheet', pageWidth/2, 48, {align:'center'});
+    doc.text('Computer Engineering Department — Skill Test: Class Result Sheet', pageWidth/2, 48, {align:'center'});
     doc.setDrawColor(...maroon); doc.setLineWidth(1); doc.line(marginX, 62, pageWidth-marginX, 62);
   }
   function drawTableHeader(y){
@@ -1516,7 +1516,7 @@ function generateClassPDF(results){
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(20,30,60);
   doc.text(`Total Students: ${total}    Passed (≥60%): ${passed}    Average: ${avg}%    Tab-Switch Flags: ${flagged}`, marginX, y);
 
-  doc.save('Class_Results_Industry_Internship_Test.pdf');
+  doc.save('Class_Results_Skill_Test.pdf');
 }
 function exportCSV(results){
   const header = ['Roll','Name','Enrolment','Class','Score','OutOf','Percent','TabSwitches','SubmittedAt'];

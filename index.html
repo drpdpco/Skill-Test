@@ -998,7 +998,7 @@ function renderTabSettings(body){
     <input type="text" id="cfgHeadingCustom" placeholder="Type your own heading" value="${!isPreset? esc(currentHeading):''}" class="${isPreset? 'hidden':''}" style="margin-top:8px">
     <div class="row2" style="margin-top:12px">
       <div><label>Academic Year</label><input type="text" id="cfgYear" value="${esc(CONFIG.year)}"></div>
-      <div><label>Test Date (display)</label><input type="text" id="cfgDate" value="${esc(CONFIG.testDate)}" placeholder="e.g. 12/07/2026"></div>
+      <div><label>Test Date (display)</label><input type="text" id="cfgDate" value="${esc(CONFIG.testDate)}" placeholder="DD/MM/YYYY, e.g. 18/08/2026"></div>
     </div>
     <div class="row2">
       <div><label>Timer (minutes)</label><input type="number" id="cfgTime" min="1" value="${esc(CONFIG.timeMin)}"></div>

@@ -434,7 +434,26 @@ function fmtDT(iso){
   if(!iso) return '';
   const d = new Date(iso);
   if(isNaN(d)) return iso;
-  return d.toLocaleString();
+  const pad = n=>String(n).padStart(2,'0');
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth()+1);
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const mins = pad(d.getMinutes());
+  const ampm = hours>=12 ? 'PM':'AM';
+  hours = hours % 12; if(hours===0) hours=12;
+  return `${day}/${month}/${year}, ${hours}:${mins} ${ampm}`;
+}
+function fmtDateOnly(iso){
+  if(!iso) return '';
+  // Handle plain "YYYY-MM-DD" (from <input type="date">) without going through
+  // the Date object, so it can't shift by a day for viewers in other timezones.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(m) return `${m[3]}/${m[2]}/${m[1]}`;
+  const d = new Date(iso);
+  if(isNaN(d)) return iso;
+  const pad = n=>String(n).padStart(2,'0');
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
 }
 
 /* ---------- setup screen if API not configured ---------- */
@@ -527,7 +546,7 @@ function renderHome(){
   app.innerHTML = `
     <div class="card">
       <div class="lead">${esc(CONFIG.testHeading || DEFAULT_CONFIG.testHeading)}</div>
-      <div class="sub">A.Y. ${esc(CONFIG.year)}${CONFIG.testDate? ' &bull; '+esc(CONFIG.testDate):''}</div>
+      <div class="sub">A.Y. ${esc(CONFIG.year)}${CONFIG.testDate? ' &bull; '+esc(fmtDateOnly(CONFIG.testDate)):''}</div>
       <div class="msg info" style="text-align:left; margin-top:16px">
         <b>📋 Instructions — Read before you begin</b>
         <ul style="margin:8px 0 0 18px; padding:0">
@@ -998,7 +1017,7 @@ function renderTabSettings(body){
     <input type="text" id="cfgHeadingCustom" placeholder="Type your own heading" value="${!isPreset? esc(currentHeading):''}" class="${isPreset? 'hidden':''}" style="margin-top:8px">
     <div class="row2" style="margin-top:12px">
       <div><label>Academic Year</label><input type="text" id="cfgYear" value="${esc(CONFIG.year)}"></div>
-      <div><label>Test Date (display)</label><input type="text" id="cfgDate" value="${esc(CONFIG.testDate)}" placeholder="DD/MM/YYYY, e.g. 18/08/2026"></div>
+      <div><label>Test Date (display)</label><input type="date" id="cfgDate" value="${esc(CONFIG.testDate)}"></div>
     </div>
     <div class="row2">
       <div><label>Timer (minutes)</label><input type="number" id="cfgTime" min="1" value="${esc(CONFIG.timeMin)}"></div>
@@ -1397,7 +1416,7 @@ function renderTabStudents(body){
 }
 
 /* ---- Results tab ---- */
-let RESULTS_SORT_MODE = 'switches'; // 'switches' (default, decreasing) or 'time'
+let RESULTS_SORT_MODE = 'switches'; // 'switches' (default, decreasing) or 'time' or 'marks'
 async function renderTabResults(body){
   body.innerHTML = `<div class="loader"><span class="spin"></span>Loading results…</div>`;
   const results = await fetchAllResults();
@@ -1407,13 +1426,14 @@ async function renderTabResults(body){
     <div class="flexbetween">
       <h3>Submissions (${results.length})</h3>
       <div style="display:flex; gap:8px; flex-wrap:wrap">
-        ${results.length? '<button class="btn-navy btn-sm" id="classPdfBtn">⬇ Download Class PDF</button>':''}
+        ${results.length? '<button class="btn-navy btn-sm" id="classPdfBtn">⬇ Download Class PDF (ranked by marks)</button>':''}
         ${results.length? '<button class="btn-gold btn-sm" id="exportBtn">Export CSV</button>':''}
       </div>
     </div>
     ${results.length? `
     <div class="btnbar" style="margin-top:0">
       <button class="btn-sm ${RESULTS_SORT_MODE==='switches'?'btn-navy':'btn-outline'}" id="sortSwitchesBtn">Sort by Tab Switches ⬇</button>
+      <button class="btn-sm ${RESULTS_SORT_MODE==='marks'?'btn-navy':'btn-outline'}" id="sortMarksBtn">Sort by Marks ⬇</button>
       <button class="btn-sm ${RESULTS_SORT_MODE==='time'?'btn-navy':'btn-outline'}" id="sortTimeBtn">Sort by Time</button>
     </div>
     <div style="overflow:auto"><table>
@@ -1433,6 +1453,8 @@ async function renderTabResults(body){
   if(classPdfBtn) classPdfBtn.onclick = ()=> generateClassPDF(results);
   const sortSwitchesBtn = document.getElementById('sortSwitchesBtn');
   if(sortSwitchesBtn) sortSwitchesBtn.onclick = ()=>{ RESULTS_SORT_MODE='switches'; renderTabResults(body); };
+  const sortMarksBtn = document.getElementById('sortMarksBtn');
+  if(sortMarksBtn) sortMarksBtn.onclick = ()=>{ RESULTS_SORT_MODE='marks'; renderTabResults(body); };
   const sortTimeBtn = document.getElementById('sortTimeBtn');
   if(sortTimeBtn) sortTimeBtn.onclick = ()=>{ RESULTS_SORT_MODE='time'; renderTabResults(body); };
   body.querySelectorAll('[data-pdfrow]').forEach(btn=>{
@@ -1442,6 +1464,8 @@ async function renderTabResults(body){
 function sortResults(results){
   if(RESULTS_SORT_MODE === 'switches'){
     results.sort((a,b)=> (b.tabSwitches||0)-(a.tabSwitches||0) || (new Date(b.submittedAt)-new Date(a.submittedAt)));
+  } else if(RESULTS_SORT_MODE === 'marks'){
+    results.sort((a,b)=> (b.score-a.score) || (b.percent-a.percent));
   } else {
     results.sort((a,b)=> new Date(b.submittedAt) - new Date(a.submittedAt));
   }
@@ -1449,6 +1473,12 @@ function sortResults(results){
 
 /* ---- Class-wide PDF (all students, paginated table) ---- */
 function generateClassPDF(results){
+  // The printed report is always ranked highest marks to lowest, regardless of
+  // whichever sort the admin currently has the on-screen table set to.
+  const ranked = [...results].sort((a,b)=> (b.score-a.score) || (b.percent-a.percent));
+  return generateClassPDFInternal(ranked);
+}
+function generateClassPDFInternal(results){
   if(!window.jspdf){ alert('PDF library did not load. Check your internet connection and try again.'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'pt', format:'a4' });
@@ -1457,7 +1487,7 @@ function generateClassPDF(results){
   const maroon = [143,27,27];
   const marginX = 40;
   const colWidths = [25,55,110,90,55,45,40,30,65]; // sums to 515 = pageWidth - 2*marginX
-  const headers = ['#','Roll','Name','Enrolment','Class','Score','%','Sw','Submitted'];
+  const headers = ['Rank','Roll','Name','Enrolment','Class','Score','%','Sw','Submitted'];
   const logoImg = document.querySelector('.header-row img.logo');
   const portraitImg = document.querySelector('.header-row img.portrait');
 
@@ -1467,7 +1497,7 @@ function generateClassPDF(results){
     doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...maroon);
     doc.text('Dr. Panjabrao Deshmukh Polytechnic, Amravati', pageWidth/2, 34, {align:'center'});
     doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(30,30,30);
-    doc.text('Computer Engineering Department — Skill Test: Class Result Sheet', pageWidth/2, 48, {align:'center'});
+    doc.text('Computer Engineering Department — Class Result Sheet (Ranked by Marks, Highest to Lowest)', pageWidth/2, 48, {align:'center'});
     doc.setDrawColor(...maroon); doc.setLineWidth(1); doc.line(marginX, 62, pageWidth-marginX, 62);
   }
   function drawTableHeader(y){

@@ -1,5 +1,5 @@
 /**
- * INDUSTRY INTERNSHIP EMPLOYABILITY TEST — Google Sheet backend
+ * SKILL TEST — Google Sheet backend
  * ---------------------------------------------------------------
  * SETUP:
  * 1. Create a new Google Sheet (any name, any starting tabs — this

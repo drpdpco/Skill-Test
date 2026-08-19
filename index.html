@@ -582,7 +582,7 @@ function renderStudentLogin(){
     <div class="card">
       <h2>Student Login</h2>
       ${windowMsg}
-      <label>Roll No.</label>
+      <label>ID No.</label>
       <input type="text" id="sRoll" placeholder="Enter your roll number" autofocus>
       <div id="rollHint"></div>
       <label>Full Name</label>
@@ -630,7 +630,7 @@ function renderStudentLogin(){
     const cls = document.getElementById('sClass').value.trim();
     const msgBox = document.getElementById('loginMsg');
     if(!name || !roll || !enrol){
-      msgBox.innerHTML = '<div class="msg err">Please fill in Name, Roll No. and Enrolment No.</div>';
+      msgBox.innerHTML = '<div class="msg err">Please fill in Name, ID No. and Enrolment No.</div>';
       return;
     }
     const now = new Date();
@@ -645,7 +645,7 @@ function renderStudentLogin(){
     if(CONFIG.restrictRoster && ROSTER.length){
       const found = ROSTER.find(r=> String(r.roll).trim()===roll && String(r.enrolment).trim()===enrol);
       if(!found){
-        msgBox.innerHTML = '<div class="msg err">Roll No. / Enrolment No. not found in the registered student list. Contact admin.</div>';
+        msgBox.innerHTML = '<div class="msg err">ID No. / Enrolment No. not found in the registered student list. Contact admin.</div>';
         return;
       }
     }
@@ -904,7 +904,7 @@ function generateResultPDF(r){
 
   const rows = [
     ['Name', r.name],
-    ['Roll No.', r.roll],
+    ['ID No.', r.roll],
     ['Enrolment No.', r.enrolment],
     ['Class', r.cls || '-'],
     ['Submitted On', fmtDT(r.submittedAt)]

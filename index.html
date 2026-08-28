@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Skill Test</title>
+<title>Skill Test of events</title>
 <style>
   :root{
     --maroon:#8f1b1b;
@@ -322,7 +322,8 @@ const DEFAULT_CONFIG = {
   certRequirePass: true,
   certCourse: '',
   certSignName: '',
-  certSignTitle: ''
+  certSignTitle: '',
+  certTextY: 42
 };
 
 let CONFIG = null;
@@ -973,12 +974,22 @@ async function generateCertificatePDF(r, triggerBtn){
     const gold = [201,162,39];
     const navy = [28,43,74];
 
+    let templateDrawn = false;
     if(tpl && tpl.hasTemplate && tpl.base64){
+      // jsPDF needs an explicit format string (it does not reliably auto-detect
+      // from the data URI) — this was the bug causing the template to silently
+      // fail to draw and fall through to a blank page.
+      const fmt = /png/i.test(tpl.mimeType||'') ? 'PNG' : 'JPEG';
       try{
-        doc.addImage(`data:${tpl.mimeType};base64,${tpl.base64}`, undefined, 0, 0, pageWidth, pageHeight);
-      }catch(e){ /* fall through to plain background if the image fails to decode */ }
-    } else {
-      // Built-in fallback design when no template has been uploaded.
+        doc.addImage(tpl.base64, fmt, 0, 0, pageWidth, pageHeight);
+        templateDrawn = true;
+      }catch(e){
+        console.error('Certificate template failed to render, using fallback design:', e);
+      }
+    }
+    if(!templateDrawn){
+      // Built-in fallback design — used when no template is uploaded, or if the
+      // uploaded one fails to decode for any reason (so students never get a blank PDF).
       doc.setFillColor(253,249,240);
       doc.rect(0,0,pageWidth,pageHeight,'F');
       doc.setDrawColor(...gold);
@@ -1000,7 +1011,7 @@ async function generateCertificatePDF(r, triggerBtn){
     }
 
     // Text overlay — printed on top of either the uploaded template or the fallback design.
-    const midY = tpl && tpl.hasTemplate ? pageHeight*0.42 : 150;
+    const midY = templateDrawn ? pageHeight*(Number(CONFIG.certTextY)||42)/100 : 150;
     doc.setFont('helvetica','bold'); doc.setFontSize(30); doc.setTextColor(...navy);
     doc.text('Certificate of Completion', pageWidth/2, midY, {align:'center'});
 
@@ -1481,25 +1492,34 @@ async function renderTabCertificate(body){
 
     <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
     <label>Course / Program Name (printed on the certificate)</label>
-    <input type="text" id="certCourse" value="${esc(CONFIG.certCourse)}" placeholder="e.g. Skill Test in various events conducted by Computer Engg. dept.">
+    <input type="text" id="certCourse" value="${esc(CONFIG.certCourse)}" placeholder="e.g. Skill Test in Computer Engg. dept.">
     <div class="row2">
       <div><label>Signatory Name</label><input type="text" id="certSignName" value="${esc(CONFIG.certSignName)}" placeholder="e.g. Dr. A. B. Sharma"></div>
       <div><label>Signatory Designation</label><input type="text" id="certSignTitle" value="${esc(CONFIG.certSignTitle)}" placeholder="e.g. Principal / HOD"></div>
     </div>
+    <label>Text Block Vertical Position (% down the page, only affects text over an uploaded template)</label>
+    <input type="number" id="certTextY" min="10" max="80" value="${esc(CONFIG.certTextY)}">
+    <p class="small" style="margin-top:4px">If your template already has decorative text/borders near the top, increase this to push the name/course text further down into the blank space on your design.</p>
     <div id="certSettingsMsg"></div>
     <div class="btnbar"><button class="btn-primary" id="saveCertSettingsBtn">Save Certificate Settings</button></div>
 
     <hr style="margin:22px 0;border:none;border-top:1px solid var(--line)">
     <h3>Certificate Template</h3>
-    <p class="small">Upload one background image (PNG or JPG, landscape works best — e.g. 1600×1130px) designed by your institution. Student name, course, and score are printed on top of it automatically. If no template is uploaded, a simple built-in design is used instead.</p>
+    <p class="small">Upload one background image (PNG or JPG, landscape works best — e.g. 1600×1130px, roughly a 1.41:1 ratio to match A4 landscape without stretching) designed by your institution. Student name, course, and score are printed on top of it automatically. If no template is uploaded, a simple built-in design is used instead.</p>
     ${tpl.hasTemplate? `
       <img src="data:${tpl.mimeType};base64,${tpl.base64}" style="max-width:100%; border:1px solid var(--line); border-radius:8px; margin:10px 0;">
-      <div class="btnbar"><button class="btn-danger btn-sm" id="removeTplBtn">Remove Template</button></div>
+      <div class="btnbar">
+        <button class="btn-danger btn-sm" id="removeTplBtn">Remove Template</button>
+      </div>
     ` : '<p class="small" style="font-style:italic">No template uploaded yet — the built-in fallback design will be used.</p>'}
     <label style="margin-top:14px">Upload Template Image</label>
     <input type="file" id="tplFile" accept="image/png,image/jpeg">
     <div id="tplMsg"></div>
-    <div class="btnbar"><button class="btn-navy" id="uploadTplBtn">Upload Template</button></div>
+    <div class="btnbar">
+      <button class="btn-navy" id="uploadTplBtn">Upload Template</button>
+      <button class="btn-gold" id="previewCertBtn">👁 Preview Certificate (sample student)</button>
+    </div>
+    <p class="small">Use Preview any time — with or without a saved template — to see exactly what students will get, without needing a real submission.</p>
   `;
 
   document.getElementById('saveCertSettingsBtn').onclick = async ()=>{
@@ -1508,8 +1528,18 @@ async function renderTabCertificate(body){
     CONFIG.certCourse = document.getElementById('certCourse').value.trim();
     CONFIG.certSignName = document.getElementById('certSignName').value.trim();
     CONFIG.certSignTitle = document.getElementById('certSignTitle').value.trim();
+    CONFIG.certTextY = parseFloat(document.getElementById('certTextY').value) || 42;
     const ok = await setJSON(K_CONFIG, CONFIG);
     document.getElementById('certSettingsMsg').innerHTML = ok? '<div class="msg ok">Saved.</div>' : '<div class="msg err">Could not save. Try again.</div>';
+  };
+  document.getElementById('previewCertBtn').onclick = ()=>{
+    const sample = {
+      name: 'Sample Student', roll: '00', enrolment: '0000000000', cls: 'TY-CO',
+      score: (Number(CONFIG.marksCorrect)||2) * Math.max(QUESTIONS.length,1),
+      outOf: (Number(CONFIG.marksCorrect)||2) * Math.max(QUESTIONS.length,1),
+      percent: 100, submittedAt: new Date().toISOString()
+    };
+    generateCertificatePDF(sample, document.getElementById('previewCertBtn'));
   };
   document.getElementById('uploadTplBtn').onclick = async ()=>{
     const fileInput = document.getElementById('tplFile');
@@ -1521,6 +1551,7 @@ async function renderTabCertificate(body){
     try{
       const base64 = await fileToBase64(file);
       await apiPost('saveCertTemplate', { mimeType: file.type, base64 });
+      CERT_TEMPLATE_CACHE = null; // force a fresh fetch next time a certificate is generated
       msg.innerHTML = '<div class="msg ok">Template uploaded.</div>';
       renderTabCertificate(body);
     }catch(e){
@@ -1531,6 +1562,7 @@ async function renderTabCertificate(body){
   if(removeBtn) removeBtn.onclick = async ()=>{
     if(!confirm('Remove the certificate template? Certificates will fall back to the built-in design.')) return;
     try{ await apiPost('clearCertTemplate', {}); }catch(e){}
+    CERT_TEMPLATE_CACHE = null;
     renderTabCertificate(body);
   };
 }

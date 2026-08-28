@@ -1015,6 +1015,8 @@ async function generateCertificatePDF(r, triggerBtn){
   ? pageHeight * (Number(CONFIG.certTextY) || 42) / 100
   : 150;
 
+const leftMargin = 60;
+
 const courseName = CONFIG.certCourse || CONFIG.testHeading || DEFAULT_CONFIG.testHeading;
 
 const certLine =
@@ -1026,28 +1028,10 @@ doc.setFont('helvetica', 'normal');
 doc.setFontSize(16);
 doc.setTextColor(...navy);
 
-doc.text(certLine, pageWidth / 2, midY, {
-  align: 'center',
-  maxWidth: pageWidth - 80
+doc.text(certLine, leftMargin, midY, {
+  align: 'left'
 });
-
-    // Signature block, bottom-right
-    const sigY = pageHeight - 70;
-    const sigX = pageWidth - 220;
-    doc.setDrawColor(120,120,120); doc.setLineWidth(0.8);
-    doc.line(sigX, sigY, sigX+170, sigY);
-    doc.setFont('helvetica','bold'); doc.setFontSize(5); doc.setTextColor(30,30,30);
-    doc.text(CONFIG.certSignName || '.', sigX+85, sigY+16, {align:'center'});
-    if(CONFIG.certSignTitle){
-      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(90,90,90);
-      doc.text(CONFIG.certSignTitle, sigX+85, sigY+30, {align:'center'});
-    }
-
-    doc.save(`Certificate_${r.roll}_${r.enrolment}.pdf`);
-  } finally {
-    if(triggerBtn){ triggerBtn.disabled = false; triggerBtn.textContent = originalLabel; }
-  }
-}
+    
 
 /* =========================================================
    ADMIN FLOW

@@ -1011,23 +1011,25 @@ async function generateCertificatePDF(r, triggerBtn){
     }
 
     // Text overlay — printed on top of either the uploaded template or the fallback design.
-    const midY = templateDrawn ? pageHeight*(Number(CONFIG.certTextY)||42)/100 : 150;
-    doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...navy);
-    doc.text('This is to certify that ', pageWidth/2, midY, {align:'left'});
+    const midY = templateDrawn
+  ? pageHeight * (Number(CONFIG.certTextY) || 42) / 100
+  : 150;
 
-    
-    doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...maroon);
-    doc.text(r.name, pageWidth/2, midY+68, {align:'center'});
+const courseName = CONFIG.certCourse || CONFIG.testHeading || DEFAULT_CONFIG.testHeading;
 
-    doc.setFont('helvetica','normal'); doc.setFontSize(24); doc.setTextColor(...navy);
-    const courseName = CONFIG.certCourse || CONFIG.testHeading || DEFAULT_CONFIG.testHeading;
-    const bodyLine = `(Roll No. ${r.roll}, Enrolment No. ${r.enrolment}) has participated in the event conducted by Computer Engg. dept.`;
-    doc.text(bodyLine, pageWidth/2, midY+94, {align:'center'});
-    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(...navy);
-    doc.text(courseName, pageWidth/2, midY+120, {align:'center'});
+const certLine =
+  `This is to certify that ${r.name} (Roll No. ${r.roll}, Enrolment No. ${r.enrolment}) ` +
+  `has participated in the event conducted by Computer Engg. dept. ${courseName} ` +
+  `with a score of ${r.score}/${r.outOf} (${r.percent}%) on ${fmtDT(r.submittedAt)}`;
 
-    doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(60,60,60);
-    doc.text(`with a score of ${r.score}/${r.outOf} (${r.percent}%) on ${fmtDT(r.submittedAt)}`, pageWidth/2, midY+146, {align:'center'});
+doc.setFont('helvetica', 'normal');
+doc.setFontSize(16);
+doc.setTextColor(...navy);
+
+doc.text(certLine, pageWidth / 2, midY, {
+  align: 'center',
+  maxWidth: pageWidth - 80
+});
 
     // Signature block, bottom-right
     const sigY = pageHeight - 70;

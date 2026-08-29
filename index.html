@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Events Skill Test</title>
+<title>Skjll Test</title>
 <style>
   :root{
     --maroon:#8f1b1b;
@@ -219,6 +219,17 @@
     transition:.12s; border:2px solid transparent;
   }
   .qnav-box:hover{transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,0.15);}
+  .cert-preview-wrap{position:relative; display:inline-block; max-width:100%; touch-action:none; user-select:none; line-height:0;}
+  .cert-preview-wrap img{max-width:100%; display:block; border:1px solid var(--line); border-radius:8px;}
+  .cert-field-marker{
+    position:absolute; transform:translate(-50%,-50%);
+    background:rgba(28,43,74,0.92); color:#fff; font-size:10.5px; font-weight:700;
+    padding:4px 9px; border-radius:14px; white-space:nowrap; cursor:grab;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3); z-index:5; border:1.5px solid #fff;
+  }
+  .cert-field-marker.dragging{cursor:grabbing; opacity:0.85;}
+  .cert-field-marker.disabled{background:rgba(120,120,120,0.6);}
+  .cert-field-toggle{display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 0;}
   .qnav-box.attempted{background:var(--good);}
   .qnav-box.notattempted{background:var(--bad);}
   .qnav-box.current{background:var(--blue); border-color:#0d3d75;}
@@ -271,7 +282,7 @@
 
 <script>
 /* =========================================================
-   ISKILL TEST
+  SKILL TEST
    Data is stored in a Google Sheet via a Google Apps Script
    Web App acting as a simple JSON API. See setup instructions
    provided alongside this file. Paste your deployed Web App
@@ -323,8 +334,45 @@ const DEFAULT_CONFIG = {
   certCourse: '',
   certSignName: '',
   certSignTitle: '',
-  certTextY: 42
+  certFields: '' // JSON string of {field: {x,y,enabled}} — positions on the template, set via the drag editor
 };
+
+/* Certificate field metadata + default positions (percent of page width/height).
+   Admin drags these onto their template in the Certificate tab; positions and
+   enabled/disabled state are saved into CONFIG.certFields as JSON. */
+const CERT_FIELD_META = {
+  name:          { label:'Student Name',    sample:'Sample Student',                          fontSize:22, bold:true,  color:[143,27,27] },
+  course:        { label:'Course/Program',  sample:'Sample Course Name',                       fontSize:14, bold:true,  color:[28,43,74] },
+  rollEnrolment: { label:'Roll & Enrolment',sample:'Roll No. 00, Enrolment No. 0000000000',     fontSize:10, bold:false, color:[60,60,60] },
+  score:         { label:'Score',           sample:'20/20 (100%)',                              fontSize:11, bold:false, color:[60,60,60] },
+  date:          { label:'Date',            sample:'28/08/2026',                                fontSize:10, bold:false, color:[60,60,60] },
+  signName:      { label:'Signatory Name',  sample:'Signatory Name',                            fontSize:11, bold:true,  color:[30,30,30] },
+  signTitle:     { label:'Signatory Title', sample:'Designation',                               fontSize:9,  bold:false, color:[90,90,90] }
+};
+const DEFAULT_CERT_FIELDS = {
+  name:          {x:50, y:42, enabled:true},
+  course:        {x:50, y:52, enabled:true},
+  rollEnrolment: {x:50, y:60, enabled:true},
+  score:         {x:50, y:68, enabled:true},
+  date:          {x:50, y:75, enabled:true},
+  signName:      {x:80, y:87, enabled:true},
+  signTitle:     {x:80, y:91, enabled:true}
+};
+function getCertFields(){
+  let parsed = {};
+  try{ parsed = JSON.parse(CONFIG.certFields || '{}'); }catch(e){ parsed = {}; }
+  const merged = {};
+  Object.keys(DEFAULT_CERT_FIELDS).forEach(k=>{
+    merged[k] = Object.assign({}, DEFAULT_CERT_FIELDS[k], parsed[k]||{});
+  });
+  return merged;
+}
+function fmtCertDate(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  const pad = n=>String(n).padStart(2,'0');
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+}
 
 let CONFIG = null;
 let QUESTIONS = [];
@@ -949,7 +997,7 @@ function generateResultPDF(r){
   doc.setFontSize(9);
   doc.setTextColor(120,120,120);
   doc.setFont('helvetica','normal');
-  doc.text('This is a system-generated result sheet from the Skill Test portal.', pageWidth/2, y, {align:'center'});
+  doc.text('This is a system-generated result sheet from the Skill Internship Test portal.', pageWidth/2, y, {align:'center'});
 
   doc.save(`Result_${r.roll}_${r.enrolment}.pdf`);
 }
@@ -1010,37 +1058,63 @@ async function generateCertificatePDF(r, triggerBtn){
       doc.text('Computer Engineering Department', pageWidth/2, 88, {align:'center'});
     }
 
-    // Text overlay — printed on top of either the uploaded template or the fallback design.
-    const midY = templateDrawn ? pageHeight*(Number(CONFIG.certTextY)||42)/100 : 150;
-    doc.setFont('helvetica','bold'); doc.setFontSize(30); doc.setTextColor(...navy);
-    doc.text('Certificate of Completion', pageWidth/2, midY, {align:'center'});
+    if(templateDrawn){
+      // Real template: only draw the per-student values, positioned wherever the
+      // admin dragged them — the template's own wording/design stays untouched.
+      const courseName = CONFIG.certCourse || CONFIG.testHeading || DEFAULT_CONFIG.testHeading;
+      const values = {
+        name: r.name,
+        course: courseName,
+        rollEnrolment: `Roll No. ${r.roll}, Enrolment No. ${r.enrolment}`,
+        score: `${r.score}/${r.outOf} (${r.percent}%)`,
+        date: fmtCertDate(r.submittedAt),
+        signName: CONFIG.certSignName || '',
+        signTitle: CONFIG.certSignTitle || ''
+      };
+      const fields = getCertFields();
+      Object.keys(CERT_FIELD_META).forEach(key=>{
+        const f = fields[key];
+        const val = values[key];
+        if(!f || !f.enabled || !val) return;
+        const meta = CERT_FIELD_META[key];
+        doc.setFont('helvetica', meta.bold? 'bold':'normal');
+        doc.setFontSize(meta.fontSize);
+        doc.setTextColor(...meta.color);
+        doc.text(val, pageWidth*(f.x/100), pageHeight*(f.y/100), {align:'center'});
+      });
+    } else {
+      // Built-in fallback layout — used only when no template is uploaded.
+      const midY = 150;
+      doc.setFont('helvetica','bold'); doc.setFontSize(30); doc.setTextColor(...navy);
+      doc.text('Certificate of Completion', pageWidth/2, midY, {align:'center'});
 
-    doc.setFont('helvetica','normal'); doc.setFontSize(13); doc.setTextColor(60,60,60);
-    doc.text('This is to certify that', pageWidth/2, midY+34, {align:'center'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(13); doc.setTextColor(60,60,60);
+      doc.text('This is to certify that', pageWidth/2, midY+34, {align:'center'});
 
-    doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...maroon);
-    doc.text(r.name, pageWidth/2, midY+68, {align:'center'});
+      doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...maroon);
+      doc.text(r.name, pageWidth/2, midY+68, {align:'center'});
 
-    doc.setFont('helvetica','normal'); doc.setFontSize(13); doc.setTextColor(60,60,60);
-    const courseName = CONFIG.certCourse || CONFIG.testHeading || DEFAULT_CONFIG.testHeading;
-    const bodyLine = `(Roll No. ${r.roll}, Enrolment No. ${r.enrolment}) has successfully completed`;
-    doc.text(bodyLine, pageWidth/2, midY+94, {align:'center'});
-    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(...navy);
-    doc.text(courseName, pageWidth/2, midY+120, {align:'center'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(13); doc.setTextColor(60,60,60);
+      const courseName = CONFIG.certCourse || CONFIG.testHeading || DEFAULT_CONFIG.testHeading;
+      const bodyLine = `(Roll No. ${r.roll}, Enrolment No. ${r.enrolment}) has successfully completed`;
+      doc.text(bodyLine, pageWidth/2, midY+94, {align:'center'});
+      doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(...navy);
+      doc.text(courseName, pageWidth/2, midY+120, {align:'center'});
 
-    doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(60,60,60);
-    doc.text(`with a score of ${r.score}/${r.outOf} (${r.percent}%) on ${fmtDT(r.submittedAt)}`, pageWidth/2, midY+146, {align:'center'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(60,60,60);
+      doc.text(`with a score of ${r.score}/${r.outOf} (${r.percent}%) on ${fmtCertDate(r.submittedAt)}`, pageWidth/2, midY+146, {align:'center'});
 
-    // Signature block, bottom-right
-    const sigY = pageHeight - 70;
-    const sigX = pageWidth - 220;
-    doc.setDrawColor(120,120,120); doc.setLineWidth(0.8);
-    doc.line(sigX, sigY, sigX+170, sigY);
-    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(30,30,30);
-    doc.text(CONFIG.certSignName || 'Authorized Signatory', sigX+85, sigY+16, {align:'center'});
-    if(CONFIG.certSignTitle){
-      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(90,90,90);
-      doc.text(CONFIG.certSignTitle, sigX+85, sigY+30, {align:'center'});
+      // Signature block, bottom-right
+      const sigY = pageHeight - 70;
+      const sigX = pageWidth - 220;
+      doc.setDrawColor(120,120,120); doc.setLineWidth(0.8);
+      doc.line(sigX, sigY, sigX+170, sigY);
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(30,30,30);
+      doc.text(CONFIG.certSignName || 'Authorized Signatory', sigX+85, sigY+16, {align:'center'});
+      if(CONFIG.certSignTitle){
+        doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(90,90,90);
+        doc.text(CONFIG.certSignTitle, sigX+85, sigY+30, {align:'center'});
+      }
     }
 
     doc.save(`Certificate_${r.roll}_${r.enrolment}.pdf`);
@@ -1479,6 +1553,9 @@ async function renderTabCertificate(body){
   let tpl;
   try{ tpl = await apiGet('certTemplate'); }catch(e){ tpl = {hasTemplate:false}; }
   CERT_TEMPLATE_CACHE = tpl;
+  const fields = getCertFields();
+  // Working copy the editor mutates; only written back to CONFIG on explicit Save.
+  const workingFields = JSON.parse(JSON.stringify(fields));
 
   body.innerHTML = `
     <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
@@ -1492,34 +1569,44 @@ async function renderTabCertificate(body){
 
     <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
     <label>Course / Program Name (printed on the certificate)</label>
-    <input type="text" id="certCourse" value="${esc(CONFIG.certCourse)}" placeholder="e.g. Skill Test for Events in Computer Engg. dept.">
+    <input type="text" id="certCourse" value="${esc(CONFIG.certCourse)}" placeholder="e.g. Skill Test in Computer Engg. dept.">
     <div class="row2">
       <div><label>Signatory Name</label><input type="text" id="certSignName" value="${esc(CONFIG.certSignName)}" placeholder="e.g. Dr. A. B. Sharma"></div>
       <div><label>Signatory Designation</label><input type="text" id="certSignTitle" value="${esc(CONFIG.certSignTitle)}" placeholder="e.g. Principal / HOD"></div>
     </div>
-    <label>Text Block Vertical Position (% down the page, only affects text over an uploaded template)</label>
-    <input type="number" id="certTextY" min="10" max="80" value="${esc(CONFIG.certTextY)}">
-    <p class="small" style="margin-top:4px">If your template already has decorative text/borders near the top, increase this to push the name/course text further down into the blank space on your design.</p>
     <div id="certSettingsMsg"></div>
     <div class="btnbar"><button class="btn-primary" id="saveCertSettingsBtn">Save Certificate Settings</button></div>
 
     <hr style="margin:22px 0;border:none;border-top:1px solid var(--line)">
     <h3>Certificate Template</h3>
-    <p class="small">Upload one background image (PNG or JPG, landscape works best — e.g. 1600×1130px, roughly a 1.41:1 ratio to match A4 landscape without stretching) designed by your institution. Student name, course, and score are printed on top of it automatically. If no template is uploaded, a simple built-in design is used instead.</p>
-    ${tpl.hasTemplate? `
-      <img src="data:${tpl.mimeType};base64,${tpl.base64}" style="max-width:100%; border:1px solid var(--line); border-radius:8px; margin:10px 0;">
-      <div class="btnbar">
-        <button class="btn-danger btn-sm" id="removeTplBtn">Remove Template</button>
-      </div>
-    ` : '<p class="small" style="font-style:italic">No template uploaded yet — the built-in fallback design will be used.</p>'}
-    <label style="margin-top:14px">Upload Template Image</label>
+    <p class="small">Upload one background image (PNG or JPG, landscape works best — e.g. 1600×1130px, roughly a 1.41:1 ratio to match A4 landscape without stretching) designed by your institution. If your template already has printed wording ("This is to certify that...", a title, decorative borders, etc.), leave that as-is — you'll only place the parts that change per student below. If no template is uploaded, a simple built-in design is used instead.</p>
+    <label>Upload Template Image</label>
     <input type="file" id="tplFile" accept="image/png,image/jpeg">
     <div id="tplMsg"></div>
     <div class="btnbar">
       <button class="btn-navy" id="uploadTplBtn">Upload Template</button>
+      ${tpl.hasTemplate? '<button class="btn-danger btn-sm" id="removeTplBtn">Remove Template</button>' : ''}
+    </div>
+
+    ${tpl.hasTemplate? `
+      <hr style="margin:22px 0;border:none;border-top:1px solid var(--line)">
+      <h3>Place Fields on Your Template</h3>
+      <p class="small">Drag each label onto the exact spot on your template where that text should print. Uncheck a field if your template already has that wording pre-printed (e.g. if it already says "Date: ___", you might turn off the Date field here). Positions are saved as a % of the page, so they work regardless of final PDF size.</p>
+      <div id="certFieldToggles" style="margin-bottom:12px"></div>
+      <div class="cert-preview-wrap" id="certPreviewWrap">
+        <img id="certPreviewImg" src="data:${tpl.mimeType};base64,${tpl.base64}">
+      </div>
+      <div id="certPosMsg"></div>
+      <div class="btnbar">
+        <button class="btn-primary" id="saveFieldPosBtn">Save Field Positions</button>
+        <button class="btn-outline btn-sm" id="resetFieldPosBtn">Reset to Default Layout</button>
+      </div>
+    ` : '<p class="small" style="font-style:italic; margin-top:10px">No template uploaded yet — the built-in fallback design will be used, with its own fixed layout.</p>'}
+
+    <div class="btnbar" style="margin-top:16px">
       <button class="btn-gold" id="previewCertBtn">👁 Preview Certificate (sample student)</button>
     </div>
-    <p class="small">Use Preview any time — with or without a saved template — to see exactly what students will get, without needing a real submission.</p>
+    <p class="small">Use Preview any time to see exactly what students will get, without needing a real submission.</p>
   `;
 
   document.getElementById('saveCertSettingsBtn').onclick = async ()=>{
@@ -1528,7 +1615,6 @@ async function renderTabCertificate(body){
     CONFIG.certCourse = document.getElementById('certCourse').value.trim();
     CONFIG.certSignName = document.getElementById('certSignName').value.trim();
     CONFIG.certSignTitle = document.getElementById('certSignTitle').value.trim();
-    CONFIG.certTextY = parseFloat(document.getElementById('certTextY').value) || 42;
     const ok = await setJSON(K_CONFIG, CONFIG);
     document.getElementById('certSettingsMsg').innerHTML = ok? '<div class="msg ok">Saved.</div>' : '<div class="msg err">Could not save. Try again.</div>';
   };
@@ -1565,7 +1651,79 @@ async function renderTabCertificate(body){
     CERT_TEMPLATE_CACHE = null;
     renderTabCertificate(body);
   };
+
+  if(tpl.hasTemplate){
+    setupCertFieldEditor(workingFields);
+    document.getElementById('saveFieldPosBtn').onclick = async ()=>{
+      CONFIG.certFields = JSON.stringify(workingFields);
+      const ok = await setJSON(K_CONFIG, CONFIG);
+      document.getElementById('certPosMsg').innerHTML = ok? '<div class="msg ok">Field positions saved.</div>' : '<div class="msg err">Could not save. Try again.</div>';
+    };
+    document.getElementById('resetFieldPosBtn').onclick = ()=>{
+      if(!confirm('Reset all fields to the default layout?')) return;
+      Object.assign(workingFields, JSON.parse(JSON.stringify(DEFAULT_CERT_FIELDS)));
+      renderTabCertificate(body);
+    };
+  }
 }
+
+/* Drag-to-position editor for certificate fields, overlaid on the template preview. */
+function setupCertFieldEditor(workingFields){
+  const wrap = document.getElementById('certPreviewWrap');
+  const toggles = document.getElementById('certFieldToggles');
+  if(!wrap) return;
+
+  toggles.innerHTML = Object.keys(CERT_FIELD_META).map(key=>`
+    <label class="cert-field-toggle">
+      <input type="checkbox" data-toggle-field="${key}" ${workingFields[key].enabled? 'checked':''} style="width:auto;">
+      ${esc(CERT_FIELD_META[key].label)}
+    </label>
+  `).join('');
+
+  const markers = {};
+  Object.keys(CERT_FIELD_META).forEach(key=>{
+    const meta = CERT_FIELD_META[key];
+    const f = workingFields[key];
+    const marker = document.createElement('div');
+    marker.className = 'cert-field-marker' + (f.enabled? '' : ' disabled');
+    marker.textContent = meta.label;
+    marker.style.left = f.x + '%';
+    marker.style.top = f.y + '%';
+    marker.dataset.field = key;
+    wrap.appendChild(marker);
+    markers[key] = marker;
+
+    let dragging = false;
+    marker.addEventListener('pointerdown', (e)=>{
+      dragging = true;
+      marker.classList.add('dragging');
+      marker.setPointerCapture(e.pointerId);
+    });
+    marker.addEventListener('pointermove', (e)=>{
+      if(!dragging) return;
+      const rect = wrap.getBoundingClientRect();
+      let xPct = ((e.clientX - rect.left) / rect.width) * 100;
+      let yPct = ((e.clientY - rect.top) / rect.height) * 100;
+      xPct = Math.max(0, Math.min(100, xPct));
+      yPct = Math.max(0, Math.min(100, yPct));
+      marker.style.left = xPct + '%';
+      marker.style.top = yPct + '%';
+      workingFields[key].x = Math.round(xPct*10)/10;
+      workingFields[key].y = Math.round(yPct*10)/10;
+    });
+    marker.addEventListener('pointerup', ()=>{ dragging = false; marker.classList.remove('dragging'); });
+    marker.addEventListener('pointercancel', ()=>{ dragging = false; marker.classList.remove('dragging'); });
+  });
+
+  toggles.querySelectorAll('[data-toggle-field]').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const key = chk.dataset.toggleField;
+      workingFields[key].enabled = chk.checked;
+      markers[key].classList.toggle('disabled', !chk.checked);
+    });
+  });
+}
+
 function fileToBase64(file){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
